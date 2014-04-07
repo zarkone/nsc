@@ -12,11 +12,16 @@ Model.getCommands = function () {
 
 Model.exec = function (cmd) {
 
+    var answer;
+
     if (this._commands[cmd.name] === undefined) {
         console.error("No such command: ", cmd.name);
+
     } else {
-        this._command[cmd.name]();
+        answer = this._commands[cmd.name].exec(cmd.params);
     }
+    
+    return answer;
     
 };
 
@@ -48,8 +53,8 @@ Daemon.exec = function (cmd) {
         answer = this._model.exec(cmd);
 
     } else {
-
-        answer = this._command[cmd.name]();
+        console.log("Daemon.exec");
+        answer = this._command[cmd.name].exec(cmd.params);
     }
 
     return answer;
@@ -72,7 +77,7 @@ Daemon._processMessage = function (request) {
         answer = {};
 
     try {
-       cmd = JSON.parse(request.toString());
+        cmd = JSON.parse(request.toString());
 
     } catch (e) {
 
@@ -85,6 +90,7 @@ Daemon._processMessage = function (request) {
     answer = this.exec(cmd);
 
     if (answer === undefined) {
+
         answer = this.getCommands();
     }
 
@@ -103,9 +109,9 @@ Daemon.create = function (model) {
 
         if (err) {
             console.log(err);
+
         } else {
             console.log("Listening on 5555...");
-
         }
     });
 
