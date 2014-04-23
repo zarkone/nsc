@@ -13,8 +13,10 @@ Model.getCommands = function () {
 Model.exec = function (cmd) {
 
     var answer;
+    console.log(cmd);
 
     if (this._commands[cmd.name] === undefined) {
+        console.log(this._commands);
         console.error("No such command: ", cmd.name);
 
     } else {
@@ -38,7 +40,7 @@ Daemon.getCommands = function () {
     var modelCommands = this._model.getCommands();
 
     for (var i in this._commands) {
-        modelCommands[i] = this.commands[i];
+        modelCommands[i] = this._commands[i];
     }
 
     return modelCommands;
@@ -49,28 +51,16 @@ Daemon.exec = function (cmd) {
     var answer;
 
     if (this._commands[cmd.name] === undefined) {
-
         answer = this._model.exec(cmd);
 
     } else {
-        console.log("Daemon.exec");
-        answer = this._command[cmd.name].exec(cmd.params);
+        answer = this._commands[cmd.name].exec(cmd.params);
     }
 
     return answer;
     
 };
 
-/**
-command  = {
-    name: "haha",
-    params: {
-        first: "f",
-        second: "s"
-
-    }
-}
-*/
 Daemon._processMessage = function (request) {
 
     var cmd,
@@ -80,7 +70,6 @@ Daemon._processMessage = function (request) {
         cmd = JSON.parse(request.toString());
 
     } catch (e) {
-
         console.log(e.message);
         this._responder.send('{ "error" : "bad command format"}');        
 
@@ -93,7 +82,7 @@ Daemon._processMessage = function (request) {
 
         answer = this.getCommands();
     }
-
+    
     this._responder.send(JSON.stringify(answer));
     
 };
@@ -102,7 +91,6 @@ Daemon.create = function (model) {
     
     var daemon = Object.create(this);
 
-    daemon._commands = {};
     daemon._model = model;
     
     daemon._responder.bind('tcp://*:5555', function(err) {

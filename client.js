@@ -19,7 +19,10 @@ requester.connect("tcp://localhost:5555");
 process.stdin.on('data', function (input) { 
 
     process.stdin.pause();
-    var req = JSON.stringify({ name: input.toString().trimRight(), params: { message: "hahah" } });
+
+    var inputArray = input.toString().trimRight().split(' '),
+        command = inputArray[0], param = inputArray[1],
+        req = JSON.stringify({ name: command, params: { filename: param } });
 
     requester.send(req);
 
