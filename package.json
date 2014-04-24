@@ -1,0 +1,9 @@
+{
+    "name": "simple-player",
+    "description": "small player on NSC arch",
+    "version": "0.0.1",
+    "dependencies": {
+
+        "zmq": "*"
+    }
+}
