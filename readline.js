@@ -15,7 +15,7 @@ rq.on("message", function(reply) {
     rl.prompt();
 
 });
-console.log(format("tcp://%s:%d", process.argv[2], process.argv[3]));
+
 rq.connect(format("tcp://%s:%d", process.argv[2], process.argv[3]));
 
 

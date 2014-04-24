@@ -50,10 +50,7 @@ Daemon.exec = function (cmd) {
 
     var answer;
 
-    if (this._commands[cmd.name] === undefined) {
-        answer = this._model.exec(cmd);
-
-    } else {
+    if (this._commands[cmd.name] !== undefined) {
         answer = this._commands[cmd.name].exec(cmd.params);
     }
 
@@ -79,11 +76,10 @@ Daemon._processMessage = function (request) {
     answer = this.exec(cmd);
 
     if (answer === undefined) {
-
         answer = this.getCommands();
     }
     
-    this._responder.send(JSON.stringify(answer));
+    this._responder.send('{ "error" : "no such command", "params": { "commands" : ' + JSON.stringify(answer) + ' } }');
     
 };
 
