@@ -2,7 +2,13 @@ var format = require('util').format,
     readline = require('readline'),
     rl = readline.createInterface(process.stdin, process.stdout),
     zmq = require('zmq'),
-    rq = zmq.socket('req');
+    rq = zmq.socket('req'),
+    timeSub = zmq.socket('sub');
+
+
+rq.connect(format('tcp://%s:5555', process.argv[2]));
+timeSub.connect(format('tcp://%s:5556', process.argv[2]));
+timeSub.subscribe('TIMEPOS');
 
 rq.on("message", function(reply) {
     
@@ -16,8 +22,10 @@ rq.on("message", function(reply) {
 
 });
 
-rq.connect(format("tcp://%s:%d", process.argv[2], process.argv[3]));
-
+timeSub.on('message', function(time) {
+    console.log(time.toString());
+    rl.prompt();
+});
 
 rl.setPrompt('♪ ');
 rl.prompt();

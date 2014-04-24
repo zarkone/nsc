@@ -30,7 +30,8 @@ Model.exec = function (cmd) {
 var Daemon = {
 
     _model: null,
-    _responder: zmq.socket('rep')
+    _responder: zmq.socket('rep'),
+    _publisher: zmq.socket('pub')
 };
 
 Daemon.__proto__ = Model;
@@ -96,6 +97,16 @@ Daemon.create = function (model) {
 
         } else {
             console.log("Listening on 5555...");
+        }
+    });
+
+    daemon._publisher.bind('tcp://*:5556', function(err) {
+
+        if (err) {
+            console.log(err);
+
+        } else {
+            console.log("Publishing on 5556...");
         }
     });
 
