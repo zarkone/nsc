@@ -23,8 +23,8 @@ rq.on("message", function(reply) {
 });
 
 timeSub.on('message', function(time) {
-    console.log(time.toString());
-    rl.prompt();
+    // console.log(time.toString());
+    // rl.prompt();
 });
 
 rl.setPrompt('♪ ');
@@ -33,8 +33,15 @@ rl.prompt();
 rl.on('line', function(line) {
 
     var inputArray = line.toString().trimRight().split(' '),
-        command = inputArray[0], param = inputArray[1],
-        request = JSON.stringify({ name: command, params: { filename: param } });
+        command = inputArray[0], params = {};
+
+    if (inputArray[1] !== undefined) {
+
+        var param = inputArray[1].split(':');
+        params[param[0]] = param[1];
+    }
+
+    var request = JSON.stringify({ name: command, params: params });
 
     rq.send(request);
     rl.prompt();

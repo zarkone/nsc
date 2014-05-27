@@ -2,6 +2,8 @@ var daemon = require('./server').daemon,
     model = {},
     events = require('events'),
     EventEmitter = new events.EventEmitter(),
+    http = require('http'),
+    querystring = require('querystring'),
     fs = require('fs');
 
 var mplayer,
@@ -11,10 +13,12 @@ var mplayer,
 
 function spawnMplayer(filename) {
     mplayer = require('child_process').
-        spawn('mplayer', ['-slave', '-quiet', filename]);
+        spawn('mplayer', ['-slave', '-quiet',
+                          '-cache', '100', 
+                          '-cache-min', '10', 
+                          filename]);
 
     createTimePositionWatcher();
-    
 }
 
 function runTimePosWatcher() {
@@ -25,18 +29,16 @@ function runTimePosWatcher() {
 
 function createTimePositionWatcher() {
 
-    // ANS_TIME_POSITION=95.6
-    var timeRegex = /^ANS_TIME_POSITION=\d+\.+\d+/;
+    var timeRegex = /^ANS_TIME_POSITION=(\d+\.+\d+)/;
 
     mplayer.stdout.on('data', function(chunk) {
         
-        var timeString = chunk.toString().trimRight();
+        var timeString = chunk.toString().trimRight(),
+            time = timeRegex.exec(timeString);
         
-        if (timeRegex.test(timeString)) {
-            var time = timeString.split('=')[1];
-            EventEmitter.emit('mplayer_time_pos', time);
+        if (time !== null) {
+            EventEmitter.emit('mplayer_time_pos', time[1]);
         }
-
     });
 
     runTimePosWatcher();
@@ -58,6 +60,50 @@ model._commands = {
             return fs.readdirSync('sounds');
         }
             
+    },
+    getTaggedTracks: {
+        name: "getTaggedTracks",
+        params: { "tag": "tag to search"},
+        exec: function(params) {
+
+            var getParams = querystring.stringify({ 
+                    consumer_key: clientID, 
+                    tags: params.tag, 
+                    filter: 'all',
+                    order: 'hotness'
+                });
+            console.log(getParams);
+            var options = {
+                host: 'api.soundcloud.com',
+                path: '/tracks.json?' + getParams,
+                port: 80,
+                method: 'GET'
+            };
+
+            var callback = function(response) {
+                var responseString = '';
+
+                //another chunk of data has been recieved, so append it to `responseString`
+                response.on('data', function (chunk) {
+                    responseString += chunk;
+                });
+
+                //the whole response has been recieved, so we just print it out here
+                response.on('end', function () {
+
+                    var allTracks = JSON.parse(responseString);
+                    params.onGet(allTracks);
+
+                    allTracks.forEach(function(track) {
+                        // console.log(track.title, track.stream_url);
+                    });
+
+                });
+            };
+
+            http.request(options, callback).end();
+           // https://api.soundcloud.com/tracks.json?consumer_key=f5dcaf5f7c97d2996bb30bb40d23ee57&tags=pop&filter=all&order=created_at
+        }
     }
 };
 
@@ -69,7 +115,7 @@ daemon._commands = {
         name: "pause", 
         params: {},
         exec: function(params) {
-
+            console.log('pause');
             if (isPlaying) {
                 mplayer.stdin.write('pause\n');
                 isPlaying = false;
@@ -94,7 +140,7 @@ daemon._commands = {
             
     },
     
-    play: { 
+    playFile: { 
         name: "play", 
         params: { filename: "File to play"}, 
         exec: function (params) { 
@@ -108,6 +154,34 @@ daemon._commands = {
 
             return 0;
             
+        }
+    },
+    playRadio: {
+        name: "",
+        params: { tag: "tag to play" },
+        exec: function(params) {
+            // console.log(this);
+            var play = spawnMplayer;
+
+            function onGet (allTracks) {
+
+                if (isPlaying) {
+                    mplayer.stdin.write('quit\n');
+                }
+
+                play(allTracks[0].stream_url + "?consumer_key=" + clientID);
+                isPlaying= true;
+            }
+
+            model.exec({ 
+                name: "getTaggedTracks", 
+                params: { 
+                    tag: params.tag,
+                    onGet: onGet 
+                }
+            });
+            
+            return 0;
         }
     }
 };

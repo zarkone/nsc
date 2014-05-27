@@ -38,13 +38,7 @@ Daemon.__proto__ = Model;
 
 Daemon.getCommands = function () {
     
-    var modelCommands = this._model.getCommands();
-
-    for (var i in this._commands) {
-        modelCommands[i] = this._commands[i];
-    }
-
-    return modelCommands;
+    return  this._commands;
 };
 
 Daemon.exec = function (cmd) {
@@ -78,9 +72,12 @@ Daemon._processMessage = function (request) {
 
     if (answer === undefined) {
         answer = this.getCommands();
+        this._responder.send('{ "error" : "no such command", "params": { "commands" : ' + JSON.stringify(answer) + ' } }');
+    } else {
+        this._responder.send(JSON.stringify(answer));
     }
     
-    this._responder.send('{ "error" : "no such command", "params": { "commands" : ' + JSON.stringify(answer) + ' } }');
+ 
     
 };
 
