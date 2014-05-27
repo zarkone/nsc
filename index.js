@@ -2,7 +2,7 @@ var daemon = require('./server').daemon,
     model = {},
     events = require('events'),
     EventEmitter = new events.EventEmitter(),
-    http = require('http'),
+    rest = require('rest'), 
     querystring = require('querystring'),
     fs = require('fs');
 
@@ -18,6 +18,10 @@ function spawnMplayer(filename) {
                           '-cache-min', '10', 
                           filename]);
 
+    mplayer.on('close', function (code) {
+        console.log('ps process exited with code ' + code);
+    });
+    // mplayer.stdout.pipe(process.stdout);
     createTimePositionWatcher();
 }
 
@@ -66,42 +70,22 @@ model._commands = {
         params: { "tag": "tag to search"},
         exec: function(params) {
 
-            var getParams = querystring.stringify({ 
+            var path = 'http://api.soundcloud.com/tracks.json?',
+                apiParams = querystring.stringify({ 
                     consumer_key: clientID, 
                     tags: params.tag, 
                     filter: 'all',
-                    order: 'hotness'
-                });
-            console.log(getParams);
-            var options = {
-                host: 'api.soundcloud.com',
-                path: '/tracks.json?' + getParams,
-                port: 80,
-                method: 'GET'
-            };
-
-            var callback = function(response) {
-                var responseString = '';
-
-                //another chunk of data has been recieved, so append it to `responseString`
-                response.on('data', function (chunk) {
-                    responseString += chunk;
+                    order: 'created_at'
                 });
 
-                //the whole response has been recieved, so we just print it out here
-                response.on('end', function () {
+            function getEntity(request) {
+                return request.entity;
+            }
 
-                    var allTracks = JSON.parse(responseString);
-                    params.onGet(allTracks);
+            return rest(path + apiParams)
+                .then(getEntity)
+                .then(JSON.parse);
 
-                    allTracks.forEach(function(track) {
-                        // console.log(track.title, track.stream_url);
-                    });
-
-                });
-            };
-
-            http.request(options, callback).end();
            // https://api.soundcloud.com/tracks.json?consumer_key=f5dcaf5f7c97d2996bb30bb40d23ee57&tags=pop&filter=all&order=created_at
         }
     }
@@ -109,6 +93,25 @@ model._commands = {
 
 var d = daemon.create(model);
 console.log('creted daemon');
+
+
+daemon._playlist = null;
+daemon.play = function play() {
+
+
+    var currentTrack = model._playlist[model._currentTrackIndex];
+
+    console.log('Playing: ' + currentTrack.title + '['+ currentTrack.duration +']');
+    console.log('URL: ' + currentTrack.stream_url);
+
+    if (isPlaying) {
+        mplayer.stdin.write('quit\n');
+    }
+    
+    spawnMplayer(currentTrack.stream_url + "?consumer_key=" + clientID);
+    isPlaying= true;
+
+};
 
 daemon._commands = {
     pause: { 
@@ -140,7 +143,7 @@ daemon._commands = {
             
     },
     
-    playFile: { 
+    'play-file': { 
         name: "play", 
         params: { filename: "File to play"}, 
         exec: function (params) { 
@@ -156,31 +159,56 @@ daemon._commands = {
             
         }
     },
-    playRadio: {
-        name: "",
-        params: { tag: "tag to play" },
-        exec: function(params) {
-            // console.log(this);
-            var play = spawnMplayer;
+    n: {
+        name: "n", 
+        params: { }, 
 
-            function onGet (allTracks) {
+        exec: function n() { 
+            
+            var playlistLength = model._playlist.length || 0;
+            
+            if (playlistLength == 0) return 0;
+            
+            model._currentTrackIndex++;
 
-                if (isPlaying) {
-                    mplayer.stdin.write('quit\n');
-                }
-
-                play(allTracks[0].stream_url + "?consumer_key=" + clientID);
-                isPlaying= true;
+            if (model._currentTrackIndex >= playlistLength) {
+                model._currentTrackIndex = 0;
             }
 
-            model.exec({ 
+            daemon.play();
+            return 0;
+        }
+    },
+    p: {
+        name: "p",
+        params: { tag: "tag to play" },
+        exec: function p(params) {
+            // console.log(this);
+
+
+            function createPlaylist (allTracks) {
+                
+                model._playlist = allTracks.filter(function hasStreamUrl(track) {
+                    return track.stream_url !== undefined;
+                });
+
+                model._currentTrackIndex = 0;
+
+                return allTracks;
+            }
+            
+            
+            var allTracks = model.exec({ 
+
                 name: "getTaggedTracks", 
                 params: { 
-                    tag: params.tag,
-                    onGet: onGet 
+                    tag: params.tag
                 }
             });
-            
+
+            allTracks.then(createPlaylist);
+            allTracks.done(daemon.play);
+
             return 0;
         }
     }
