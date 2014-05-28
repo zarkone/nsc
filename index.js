@@ -12,24 +12,19 @@ var mplayer,
     isPlaying = false;
 
 function spawnMplayer(filename) {
+
     mplayer = require('child_process').
         spawn('mplayer', ['-slave', '-quiet',
                           '-cache', '100', 
+                          '-ao','alsa',
                           '-cache-min', '10', 
                           filename]);
 
-    mplayer.on('close', function (code) {
-        console.log('ps process exited with code ' + code);
-    });
+;
     // mplayer.stdout.pipe(process.stdout);
     createTimePositionWatcher();
 }
 
-function runTimePosWatcher() {
-
-    mplayer.stdin.write('get_time_pos\n');
-    setTimeout(runTimePosWatcher, 200);
-};
 
 function createTimePositionWatcher() {
 
@@ -42,10 +37,10 @@ function createTimePositionWatcher() {
         
         if (time !== null) {
             EventEmitter.emit('mplayer_time_pos', time[1]);
+            mplayer.stdin.write('get_time_pos\n');            
         }
     });
 
-    runTimePosWatcher();
 }
 
 EventEmitter.on('mplayer_time_pos', function(timePos) {
@@ -78,12 +73,8 @@ model._commands = {
                     order: 'created_at'
                 });
 
-            function getEntity(request) {
-                return request.entity;
-            }
-
             return rest(path + apiParams)
-                .then(getEntity)
+                .then(function (request) { return request.entity; })
                 .then(JSON.parse);
 
            // https://api.soundcloud.com/tracks.json?consumer_key=f5dcaf5f7c97d2996bb30bb40d23ee57&tags=pop&filter=all&order=created_at
@@ -96,19 +87,42 @@ console.log('creted daemon');
 
 
 daemon._playlist = null;
-daemon.play = function play() {
+daemon.next = function next() { 
+    
+    var playlistLength = model._playlist.length || 0;
+    
+    if (playlistLength == 0) return 0;
+    
+    model._currentTrackIndex++;
 
+    if (model._currentTrackIndex >= playlistLength) {
+        model._currentTrackIndex = 0;
+    }
+
+    daemon.play();
+    return 0;
+};
+
+daemon.play = function play() {
 
     var currentTrack = model._playlist[model._currentTrackIndex];
 
-    console.log('Playing: ' + currentTrack.title + '['+ currentTrack.duration +']');
+    console.log('Playing: ' + currentTrack.title + ' ['+ currentTrack.duration +']');
     console.log('URL: ' + currentTrack.stream_url);
 
     if (isPlaying) {
+
+        mplayer.removeAllListeners('close');
         mplayer.stdin.write('quit\n');
     }
     
     spawnMplayer(currentTrack.stream_url + "?consumer_key=" + clientID);
+
+    mplayer.on('close', function () { 
+        isPlaying = false;
+        daemon.next();
+    });
+
     isPlaying= true;
 
 };
@@ -163,21 +177,7 @@ daemon._commands = {
         name: "n", 
         params: { }, 
 
-        exec: function n() { 
-            
-            var playlistLength = model._playlist.length || 0;
-            
-            if (playlistLength == 0) return 0;
-            
-            model._currentTrackIndex++;
-
-            if (model._currentTrackIndex >= playlistLength) {
-                model._currentTrackIndex = 0;
-            }
-
-            daemon.play();
-            return 0;
-        }
+        exec: daemon.next
     },
     p: {
         name: "p",
@@ -207,7 +207,14 @@ daemon._commands = {
             });
 
             allTracks.then(createPlaylist);
-            allTracks.done(daemon.play);
+            allTracks.then(daemon.play);
+            allTracks.done(function () {     
+
+                mplayer.on('close', function (code) {
+                    isPlaying = false;
+                    daemon.next();
+                });
+            });
 
             return 0;
         }
