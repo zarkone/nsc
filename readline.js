@@ -22,9 +22,9 @@ rq.on("message", function(reply) {
 
 });
 
-timeSub.on('message', function(time) {
-    // console.log(time.toString());
-    // rl.prompt();
+ptimeSub.on('message', function(time) {
+    console.log(time.toString());
+    rl.prompt();
 });
 
 rl.setPrompt('♪ ');
