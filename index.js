@@ -13,14 +13,20 @@ var mplayer,
     isPlaying = false;
 
 function spawnMplayer(filename) {
-
+    
+    if (mplayer !== undefined && mplayer.stdin.writable === true) {
+        clearTimeout(timePosTimeout);
+        mplayer.removeAllListeners('exit');
+        mplayer.stdin.write('quit\n');
+    }
+        
     mplayer = require('child_process').
         spawn('mplayer', ['-slave', '-quiet',
                           '-cache', '100', 
                           '-ao','alsa',
                           '-cache-min', '10', 
                           filename]);
-
+    
     // mplayer.stdout.pipe(process.stdout);
     createTimePositionWatcher();
 }
@@ -29,32 +35,32 @@ function spawnMplayer(filename) {
 function createTimePositionWatcher() {
 
     var timeRegex = /^ANS_TIME_POSITION=(\d+)\.(\d+)/;
+    mplayer.stdin.on('error', function(e) {
+        console.log(e);
+    });
 
     mplayer.stdout.on('data', function(chunk) {
-        var matches = chunk.toString().trim().match(timeRegex);
 
+        var matches = chunk.toString().trim().match(timeRegex);
         if (matches) {
+
             var timestamp = matches[1] * 1000 + matches[2] * 100;
             EventEmitter.emit('mplayer_time_pos', timestamp);
         }
     });
-    
-    requestTimePos();
 
+    requestTimePos();
 }
 
 EventEmitter.on('mplayer_time_pos', function(timePos) {
-    console.log(timePos);
     daemon._publisher.send('TIMEPOS ' + timePos);
-
 });
 
 function requestTimePos() {
 
-    if (mplayer.stdin === undefined) return;
-
-    mplayer.stdin.write('get_time_pos\n');            
+    mplayer.stdin.write('get_time_pos\n');
     timePosTimeout = setTimeout(requestTimePos, 100);
+
 }
 // https://api.soundcloud.com/tracks.format?consumer_key=apigee&tags=pop&filter=all&order=hotness
 
@@ -96,7 +102,9 @@ var d = daemon.create(model);
 console.log('creted daemon');
 
 
-daemon._playlist = null;
+model._playlist = null;
+model._currentTrackIndex = 0;
+
 daemon.getComments = function (trackId) {
 
     var path = 'http://api.soundcloud.com/tracks/'+ trackId+'/comments.json?',
@@ -110,7 +118,8 @@ daemon.getComments = function (trackId) {
     
 };
 daemon.next = function next() { 
-    
+
+    console.log('next');
     var playlistLength = model._playlist.length || 0;
     
     if (playlistLength == 0) return 0;
@@ -123,39 +132,36 @@ daemon.next = function next() {
 
     daemon.play();
     return 0;
+    console.log('endnext');
 };
 
 daemon.play = function play() {
 
+    console.log('play');
     var currentTrack = model._playlist[model._currentTrackIndex];
 
     console.log('Playing: ' + currentTrack.title + ' ['+ currentTrack.duration +']');
     console.log('URL: ' + currentTrack.stream_url);
-    console.log(currentTrack.id);
+
     var commentsPromise = daemon.getComments(currentTrack.id);
 
     commentsPromise.done(function(comments) {
-        comments.sort(function (a,b) { return a.timestamp*1 - b.timestamp*1; })
-            .forEach(function(comment) {
-            console.log(comment.body, comment.timestamp);
+        currentTrack.comments = comments.sort(function (a,b) { 
+            return a.timestamp*1 - b.timestamp*1;
         });
     });
 
-    if (isPlaying) {
-
-        mplayer.removeAllListeners('close');
-        mplayer.stdin.write('quit\n');
-    }
-    
     spawnMplayer(currentTrack.stream_url + "?consumer_key=" + clientID);
 
-    mplayer.on('close', function () { 
+    mplayer.on('exit', function () { 
+        console.log('exit');
         isPlaying = false;
+        clearTimeout(timePosTimeout);
         daemon.next();
     });
 
     isPlaying= true;
-
+    console.log('endplay');
 };
 
 daemon._commands = {
@@ -204,6 +210,7 @@ daemon._commands = {
             
         }
     },
+
     n: {
         name: "n", 
         params: { }, 
@@ -214,13 +221,13 @@ daemon._commands = {
         name: "p",
         params: { tag: "tag to play" },
         exec: function p(params) {
-            // console.log(this);
-
 
             function createPlaylist (allTracks) {
                 
                 model._playlist = allTracks.filter(function hasStreamUrl(track) {
                     return track.stream_url !== undefined;
+                }).sort(function (a,b) {
+                    return a.duration*1 - b.duration*1;
                 });
 
                 model._currentTrackIndex = 0;
@@ -241,15 +248,24 @@ daemon._commands = {
             allTracks.then(daemon.play);
             allTracks.done(function () {     
 
-                mplayer.on('close', function (code) {
-                    isPlaying = false;
-                    daemon.next();
-                });
+                // mplayer.on('exit', function (code) {
+                //     isPlaying = false;
+                //     daemon.next();
+                // });
             });
 
             return 0;
         }
+    },
+
+    getCurrentTrack: {
+        name: "getCurrentTrack",
+        exec: function() { 
+            return model._playlist[model._currentTrackIndex];
+        }
+
     }
+
 };
 
 
