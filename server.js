@@ -67,7 +67,7 @@ Daemon._processMessage = function (request) {
 
         return;
     }
-
+    console.log(cmd);
     answer = this.exec(cmd);
 
     if (answer === undefined) {

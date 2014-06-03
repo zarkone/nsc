@@ -28,6 +28,7 @@ function spawnMplayer(filename) {
                           filename]);
     
     // mplayer.stdout.pipe(process.stdout);
+
     createTimePositionWatcher();
 }
 
@@ -54,6 +55,10 @@ function createTimePositionWatcher() {
 
 EventEmitter.on('mplayer_time_pos', function(timePos) {
     daemon._publisher.send('TIMEPOS ' + timePos);
+});
+EventEmitter.on('begin_play', function() {
+    console.log('begin_play.');
+    daemon._processMessage(JSON.stringify({name: 'getCurrentTrack', params: {}}));
 });
 
 function requestTimePos() {
@@ -144,11 +149,37 @@ daemon.play = function play() {
     console.log('URL: ' + currentTrack.stream_url);
 
     var commentsPromise = daemon.getComments(currentTrack.id);
-
+    
     commentsPromise.done(function(comments) {
-        currentTrack.comments = comments.sort(function (a,b) { 
-            return a.timestamp*1 - b.timestamp*1;
+        var groupedByTime = {};
+        
+        // currentTrack.comments = comments.sort(function (a,b) { 
+        //     return a.timestamp*1 - b.timestamp*1;
+        // });
+
+        /*
+         * group comments by cutted timetamp: 
+         *
+         * e.g. if 
+         * comment.timestamp == 115798 
+         * then -->
+         * groupedByTime['1157'].push( `comment` )
+         */
+        comments.forEach(function(comment) {
+
+            var stringTime = comment.timestamp.toString(),
+                timeIndex = stringTime.substr(0, stringTime.length - 2);
+
+            if (groupedByTime[timeIndex] === undefined) {
+                groupedByTime[timeIndex] = [];
+            }
+
+            groupedByTime[timeIndex].push(comment);
+
         });
+        
+        currentTrack.comments = groupedByTime;
+        EventEmitter.emit('begin_play');
     });
 
     spawnMplayer(currentTrack.stream_url + "?consumer_key=" + clientID);
@@ -261,7 +292,11 @@ daemon._commands = {
     getCurrentTrack: {
         name: "getCurrentTrack",
         exec: function() { 
-            return model._playlist[model._currentTrackIndex];
+            var answer =  { 
+                'command': 'getCurrentTrack',
+                'data': model._playlist[model._currentTrackIndex] 
+            };
+            return answer;
         }
 
     }
