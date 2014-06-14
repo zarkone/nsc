@@ -64,7 +64,7 @@ EventEmitter.on('begin_play', function() {
 function requestTimePos() {
 
     mplayer.stdin.write('get_time_pos\n');
-    timePosTimeout = setTimeout(requestTimePos, 100);
+    timePosTimeout = setTimeout(requestTimePos, 300);
 
 }
 // https://api.soundcloud.com/tracks.format?consumer_key=apigee&tags=pop&filter=all&order=hotness

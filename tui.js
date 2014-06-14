@@ -40,7 +40,10 @@ trackSub.on("message", function(reply) {
 
             titleBox.setContent( currentTrack.title );
             artistBox.setContent( currentTrack.user.username );
+            fillTrackPage(currentTrack);
             commentBox.setContent('');
+
+            screen.render();
 
         }; break;
     }
@@ -111,7 +114,10 @@ timeSub.on('message', function(timeString) {
 var blessed = require('blessed');
 
 // Create a screen object.
-var screen = blessed.screen();
+var screen = blessed.screen({
+    fastCSR: true,
+    useBCE: true,
+});
 
 var form = blessed.form({
     parent: screen,
@@ -126,7 +132,7 @@ var pages = [];
 form.on('resize', function (data) {
     
     pages.forEach(function (page) {
-        page.height = form.height - 5;        
+        page.height = form.height - 7;  // code dup
         page.setScrollPerc(100);
     });
 
@@ -185,8 +191,7 @@ var artistBox = blessed.box({
 
     content: 'Artist here.',
     style: {
-        fg: 'red',
-        bold: true
+        fg: 'red'
     }
 
     
@@ -204,46 +209,84 @@ var timeBox = blessed.box({
     
 });
 
+var pageTitleBox = blessed.box({
+    parent: form,
+    
+    width: '100%',
+    bold: true,
 
-var commentBox = blessed.box({
+    align: 'center',
+    content: '1: Help \t 2: Playlist \t 3: Track Info \t 4: Comments',
+    border: {
+        ch: '-'
+    },
+    top: 2,
+    height: 3
+
+});
+
+var pageOptions =  {
     parent: form,
     tags: true,
     scrollable: true, 
 
     width: '100%',
-    content: "ashsadjhe",
+    content: "page",
     padding: {
         left: 1,
         right: 1
     },
-    top: 3,
-    height: form.height - 5
-});
+    top: 5,
+    height: form.height - 7
+};
+
+var commentBox = blessed.box(pageOptions),
+    helpBox = blessed.box(pageOptions),
+    trackBox = blessed.box(pageOptions),
+    playlistBox = blessed.box(pageOptions);
+
+commentBox.title = 'Comments';
+helpBox.title = 'Help';
+trackBox.title = 'Track info';
+playlistBox.title = 'Playlist';
+
+helpBox.setContent("this is help page.");
+trackBox.setContent("this is track page.");
+playlistBox.setContent("this is playlist page.");
+
+pages.push(helpBox, playlistBox, trackBox, commentBox);
+
+function fillTrackPage(track) {
+
+    var durationObject = timestampToTimeObject(track.duration),
+        trackInfo = 
+            '{yellow-fg}{bold}Title:{/bold}{/yellow-fg} ' + track.title + '\n' + 
+            '{yellow-fg}{bold}Artist:{/bold}{/yellow-fg} ' + track.user.username + '\n' + 
+            '{yellow-fg}{bold}Genre:{/bold}{/yellow-fg} ' + track.genre + '\n' + 
+            '{yellow-fg}{bold}Tags:{/bold}{/yellow-fg} ' + track.tag_list + '\n' + 
+            '{yellow-fg}{bold}Uploaded:{/bold}{/yellow-fg} ' + track.created_at + '\n' + 
+            '{yellow-fg}{bold}Duration:{/bold}{/yellow-fg} ' + durationObject.m + ':' + durationObject.s + '\n' + 
+            '{yellow-fg}{bold}BMP:{/bold}{/yellow-fg} ' + (track.bmp || '') + '\n' + 
+            '{yellow-fg}{bold}Comment count:{/bold}{/yellow-fg} ' + track.comment_count + 
+            '{yellow-fg}{bold} Playback count:{/bold}{/yellow-fg} ' + track.playback_count + '\n' + 
+            '{yellow-fg}{bold}Type:{/bold}{/yellow-fg} ' + (track.track_type || '') + '\n' + 
+            '{yellow-fg}{bold}Page:{/bold}{/yellow-fg} ' + track.permalink_url + '\n' + 
+            '{yellow-fg}{bold}Purchase URL:{/bold}{/yellow-fg} ' + (track.purchase_url || '') + '\n' + 
+            '{yellow-fg}{bold}Download URL:{/bold}{/yellow-fg} ' + (track.download_url || '') + '\n' + 
+            '{yellow-fg}{bold}Stream URL:{/bold}{/yellow-fg} ' + track.stream_url + '\n' + 
+            '\n' + 
+            '{yellow-fg}{bold}Description:{/bold}{/yellow-fg} '+ '\n' + track.description + '\n' ;
 
 
-var helpBox = blessed.box({
-    parent: form,
-    tags: true,
-    scrollable: true, 
-
-    width: '100%',
-    content: "this is help box.",
-    padding: {
-        left: 1,
-        right: 1
-    },
-    top: 3,
-    hidden: true,
-    height: form.height - 5
-});
-
-pages.push(commentBox);
-pages.push(helpBox);
+    trackBox.setContent(trackInfo);
+}
 
 var trackProgressBar = blessed.progressbar({
     parent: form,
     tags: true,
-    barFg: '#00FFAF',
+    // barFg: 'yellow',
+    barBg: 'black',
+
     fg: 'black',
     padding: {
         left: 1,
@@ -252,10 +295,10 @@ var trackProgressBar = blessed.progressbar({
     bottom: 1,
     height: 1,
     filled: 0,
-    ch: '-'
+    ch: '.'
 });
 
-trackProgressBar.setProgress(10);
+trackProgressBar.setProgress(100);
 
 screen.key(['escape', 'q', 'C-c'], function(ch, key) {
     return process.exit(0);
@@ -270,15 +313,17 @@ screen.key(['M-x'], function(ch, key) {
 function showPage(pageToShow) {
 
     pages.forEach(function (page) {
-        page.hidden = true; 
+        page.hidden = true;
     });
     
     pageToShow.hidden = false;
-
+    pageTitleBox.setContent(pageToShow.title);
     screen.render();
 }
 
 screen.key(['1'],  function () { showPage(helpBox); });
+screen.key(['2'],  function () { showPage(playlistBox); });
+screen.key(['3'],  function () { showPage(trackBox); });
 screen.key(['4'],  function () { showPage(commentBox); });
 
 commandTextbox.key('enter', function() {
