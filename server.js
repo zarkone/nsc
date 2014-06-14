@@ -74,7 +74,9 @@ Daemon._processMessage = function (request) {
         answer = this.getCommands();
         this._responder.send('{ "error" : "no such command", "params": { "commands" : ' + JSON.stringify(answer) + ' } }');
     } else {
-        this._responder.send(JSON.stringify(answer));
+        console.log(cmd.name.toUpperCase());
+        this._responder.send('0');
+        this._publisher.send(cmd.name.toUpperCase() + ' ' + JSON.stringify(answer));
     }
     
  

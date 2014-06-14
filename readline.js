@@ -15,7 +15,7 @@ var currentTrackComments = [];
 rq.on("message", function(reply) {
     
     var jsonReply = JSON.parse(reply.toString());
-    console.log(jsonReply.command);
+
     switch(jsonReply.command) {
         case 'getCurrentTrack': {
             
@@ -24,7 +24,7 @@ rq.on("message", function(reply) {
         }; break;
     }
     
-    rl.prompt();
+    // rl.prompt();
 
 });
 
@@ -60,7 +60,7 @@ rl.on('line', function(line) {
 
     rq.send(request);
 
-    rl.prompt();
+    // rl.prompt();
 
 }).on('close', function() {
   

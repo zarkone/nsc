@@ -1,8 +1,8 @@
- var daemon = require('./server').daemon,
+var daemon = require('./server').daemon,
     model = {},
     events = require('events'),
     EventEmitter = new events.EventEmitter(),
-    rest = require('rest'), 
+    rest = require('rest'),
     querystring = require('querystring'),
     fs = require('fs');
 
@@ -13,20 +13,20 @@ var mplayer,
     isPlaying = false;
 
 function spawnMplayer(filename) {
-    
+
     if (mplayer !== undefined && mplayer.stdin.writable === true) {
         clearTimeout(timePosTimeout);
         mplayer.removeAllListeners('exit');
         mplayer.stdin.write('quit\n');
     }
-        
+
     mplayer = require('child_process').
         spawn('mplayer', ['-slave', '-quiet',
-                          '-cache', '100', 
+                          '-cache', '100',
                           '-ao','alsa',
-                          '-cache-min', '10', 
+                          '-cache-min', '10',
                           filename]);
-    
+
     // mplayer.stdout.pipe(process.stdout);
 
     createTimePositionWatcher();
@@ -71,14 +71,14 @@ function requestTimePos() {
 
 model.__proto__ = require('./server').model;
 model._commands = {
-   
-    list: { 
-        name: "list", 
+
+    list: {
+        name: "list",
         params: {},
         exec: function(params) {
             return fs.readdirSync('sounds');
         }
-            
+
     },
     getTaggedTracks: {
         name: "getTaggedTracks",
@@ -86,9 +86,9 @@ model._commands = {
         exec: function(params) {
 
             var path = 'http://api.soundcloud.com/tracks.json?',
-                apiParams = querystring.stringify({ 
-                    consumer_key: clientID, 
-                    tags: params.tag, 
+                apiParams = querystring.stringify({
+                    consumer_key: clientID,
+                    tags: params.tag,
                     filter: 'all',
                     // order: 'created_at'
                     order: 'hotness'
@@ -98,7 +98,7 @@ model._commands = {
                 .then(function (request) { return request.entity; })
                 .then(JSON.parse);
 
-           // https://api.soundcloud.com/tracks.json?consumer_key=f5dcaf5f7c97d2996bb30bb40d23ee57&tags=pop&filter=all&order=created_at
+            // https://api.soundcloud.com/tracks.json?consumer_key=f5dcaf5f7c97d2996bb30bb40d23ee57&tags=pop&filter=all&order=created_at
         }
     }
 };
@@ -113,22 +113,22 @@ model._currentTrackIndex = 0;
 daemon.getComments = function (trackId) {
 
     var path = 'http://api.soundcloud.com/tracks/'+ trackId+'/comments.json?',
-        apiParams = querystring.stringify({ 
+        apiParams = querystring.stringify({
             consumer_key: clientID
         });
 
     return rest(path + apiParams)
         .then(function (request) { return request.entity; })
         .then(JSON.parse);
-    
+
 };
-daemon.next = function next() { 
+daemon.next = function next() {
 
     console.log('next');
     var playlistLength = model._playlist.length || 0;
-    
+
     if (playlistLength == 0) return 0;
-    
+
     model._currentTrackIndex++;
 
     if (model._currentTrackIndex >= playlistLength) {
@@ -149,25 +149,26 @@ daemon.play = function play() {
     console.log('URL: ' + currentTrack.stream_url);
 
     var commentsPromise = daemon.getComments(currentTrack.id);
-    
+
     commentsPromise.done(function(comments) {
         var groupedByTime = {};
-        
-        // currentTrack.comments = comments.sort(function (a,b) { 
+
+        // currentTrack.comments = comments.sort(function (a,b) {
         //     return a.timestamp*1 - b.timestamp*1;
         // });
 
         /*
-         * group comments by cutted timetamp: 
+         * group comments by cutted timetamp:
          *
-         * e.g. if 
-         * comment.timestamp == 115798 
+         * e.g. if
+         * comment.timestamp == 115798
          * then -->
          * groupedByTime['1157'].push( `comment` )
          */
         comments.forEach(function(comment) {
 
-            var stringTime = comment.timestamp.toString(),
+            var stringTime = comment.timestamp ?
+                    comment.timestamp.toString() : '0',
                 timeIndex = stringTime.substr(0, stringTime.length - 2);
 
             if (groupedByTime[timeIndex] === undefined) {
@@ -177,14 +178,14 @@ daemon.play = function play() {
             groupedByTime[timeIndex].push(comment);
 
         });
-        
+
         currentTrack.comments = groupedByTime;
         EventEmitter.emit('begin_play');
     });
 
     spawnMplayer(currentTrack.stream_url + "?consumer_key=" + clientID);
 
-    mplayer.on('exit', function () { 
+    mplayer.on('exit', function () {
         console.log('exit');
         isPlaying = false;
         clearTimeout(timePosTimeout);
@@ -196,8 +197,8 @@ daemon.play = function play() {
 };
 
 daemon._commands = {
-    pause: { 
-        name: "pause", 
+    pause: {
+        name: "pause",
         params: {},
         exec: function(params) {
             console.log('pause');
@@ -208,10 +209,10 @@ daemon._commands = {
 
             return 0;
         }
-            
+
     },
-    resume: { 
-        name: "resume", 
+    resume: {
+        name: "resume",
         params: {},
         exec: function(params) {
 
@@ -222,14 +223,14 @@ daemon._commands = {
 
             return 0;
         }
-            
+
     },
-    
-    'play-file': { 
-        name: "play", 
-        params: { filename: "File to play"}, 
-        exec: function (params) { 
-            
+
+    'play-file': {
+        name: "play",
+        params: { filename: "File to play"},
+        exec: function (params) {
+
             if (isPlaying) {
                 mplayer.stdin.write('quit\n');
             }
@@ -238,13 +239,13 @@ daemon._commands = {
             isPlaying = true;
 
             return 0;
-            
+
         }
     },
 
     n: {
-        name: "n", 
-        params: { }, 
+        name: "n",
+        params: { },
 
         exec: daemon.next
     },
@@ -254,7 +255,7 @@ daemon._commands = {
         exec: function p(params) {
 
             function createPlaylist (allTracks) {
-                
+
                 model._playlist = allTracks.filter(function hasStreamUrl(track) {
                     return track.stream_url !== undefined;
                 }).sort(function (a,b) {
@@ -265,19 +266,19 @@ daemon._commands = {
 
                 return allTracks;
             }
-            
-            
-            var allTracks = model.exec({ 
 
-                name: "getTaggedTracks", 
-                params: { 
+
+            var allTracks = model.exec({
+
+                name: "getTaggedTracks",
+                params: {
                     tag: params.tag
                 }
             });
 
             allTracks.then(createPlaylist);
             allTracks.then(daemon.play);
-            allTracks.done(function () {     
+            allTracks.done(function () {
 
                 // mplayer.on('exit', function (code) {
                 //     isPlaying = false;
@@ -291,17 +292,22 @@ daemon._commands = {
 
     getCurrentTrack: {
         name: "getCurrentTrack",
-        exec: function() { 
-            var answer =  { 
+        exec: function() {
+            
+            if (model._playlist === null) return 0;
+
+            var currentTrack = model._playlist[model._currentTrackIndex] || null;
+
+            if (currentTrack === null) return 0;
+
+            var answer =  {
                 'command': 'getCurrentTrack',
-                'data': model._playlist[model._currentTrackIndex] 
+                'data': currentTrack
             };
+
             return answer;
         }
 
     }
 
 };
-
-
-
