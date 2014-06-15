@@ -12,7 +12,7 @@ timeSub.subscribe('TIMEPOS');
 trackSub.connect(format('tcp://%s:5556', process.argv[2]));
 trackSub.subscribe('GETCURRENTTRACK');
 
-var currentTrack , noComments = false;
+var currentTrack;
 rq.on('message', function(reply){
 
 });
@@ -20,33 +20,48 @@ rq.on('message', function(reply){
 
 trackSub.on("message", function(reply) {
 
-    if (/^GETCURRENTTRACK/.test(reply.toString()) == false) return;
-    
-    var replyMatches = /^GETCURRENTTRACK ({.*})/.exec(reply.toString());
+    var replyMatches = /^[A-Z]+ ({.*})/.exec(reply.toString());
         
     if (!replyMatches || !replyMatches[1]) return;
 
     var jsonReply = JSON.parse(replyMatches[1] || {});
 
     switch(jsonReply.command) {
-        case 'getCurrentTrack': {
 
-            currentTrack = jsonReply.data;
+    case 'getCurrentTrack': {
+        
+        currentTrack = jsonReply.data;
 
-            if (!currentTrack.comments) {
-                currentTrack.comments = [];
-                noComments = true;
-            } 
+        if (!currentTrack.comments) {
+            currentTrack.comments = [];
+        } 
 
-            titleBox.setContent( currentTrack.title );
-            artistBox.setContent( currentTrack.user.username );
-            fillTrackPage(currentTrack);
-            commentBox.setContent('');
+        titleBox.setContent( currentTrack.title );
+        artistBox.setContent( currentTrack.user.username );
+        fillTrackPage(currentTrack);
 
-            screen.render();
+        commentBox.setContent('');
 
-        }; break;
+        if (currentTrack.comments[''] !== undefined) {
+            // code dup
+            currentTrack.comments[''].forEach(function(comment){
+                commentBox.setContent(commentBox.content +'\n' + 
+                                      formatComment(comment));
+                
+            });
+            commentBox.setScrollPerc(100);
+
+        }
+        
+        screen.render();
+
+    }; break;
+    case 'getPlaylist': {
+        
+        
+    };break;
     }
+
 
 });
 
@@ -96,10 +111,10 @@ timeSub.on('message', function(timeString) {
     var progressPersent =  (timestampString | 0) / (currentTrack.duration / 100);
     trackProgressBar.setProgress(progressPersent);
 
-    if (currentTrack.comments[timeIndex] !== undefined) {
+    if ( timeIndex  && currentTrack.comments[timeIndex] !== undefined) {
         currentTrack.comments[timeIndex].forEach(function(comment){
 
-            commentBox.setContent(commentBox.content + '\n' + 
+            commentBox.setContent(commentBox.content +'\n' +
                                  formatComment(comment));
             
         });

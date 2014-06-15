@@ -64,7 +64,7 @@ EventEmitter.on('begin_play', function() {
 function requestTimePos() {
 
     mplayer.stdin.write('get_time_pos\n');
-    timePosTimeout = setTimeout(requestTimePos, 300);
+    timePosTimeout = setTimeout(requestTimePos, 100);
 
 }
 // https://api.soundcloud.com/tracks.format?consumer_key=apigee&tags=pop&filter=all&order=hotness
@@ -89,7 +89,7 @@ model._commands = {
                 apiParams = querystring.stringify({
                     consumer_key: clientID,
                     tags: params.tag,
-                    filter: 'all',
+                    filter: 'streamable',
                     // order: 'created_at'
                     order: 'hotness'
                 });
@@ -137,11 +137,11 @@ daemon.next = function next() {
 
     daemon.play();
     return 0;
-    console.log('endnext');
+
 };
 
 daemon.play = function play() {
-
+    
     console.log('play');
     var currentTrack = model._playlist[model._currentTrackIndex];
 
@@ -152,11 +152,7 @@ daemon.play = function play() {
 
     commentsPromise.done(function(comments) {
         var groupedByTime = {};
-
-        // currentTrack.comments = comments.sort(function (a,b) {
-        //     return a.timestamp*1 - b.timestamp*1;
-        // });
-
+        
         /*
          * group comments by cutted timetamp:
          *
@@ -256,13 +252,13 @@ daemon._commands = {
 
             function createPlaylist (allTracks) {
 
-                model._playlist = allTracks.filter(function hasStreamUrl(track) {
-                    return track.stream_url !== undefined;
-                }).sort(function (a,b) {
+                model._playlist = allTracks.sort(function (a,b) {
                     return a.duration*1 - b.duration*1;
                 });
-
+                
                 model._currentTrackIndex = 0;
+                
+                daemon._processMessage(JSON.stringify({name: 'getPlaylist', params: {}}));
 
                 return allTracks;
             }
@@ -303,6 +299,21 @@ daemon._commands = {
             var answer =  {
                 'command': 'getCurrentTrack',
                 'data': currentTrack
+            };
+
+            return answer;
+        }
+
+    },
+    getPlaylist: {
+        name: "getPlaylist",
+        exec: function() {
+            
+            if (model._playlist === null) return 0;
+
+            var answer =  {
+                'command': 'getPlaylist',
+                'data': model._playlist
             };
 
             return answer;
